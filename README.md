@@ -83,7 +83,7 @@ git clone https://github.com/orange2ai/disk-raccoon ~/.claude/skills/disk-raccoo
 | 飞书 `LarkShell/aha` 文档缓存 | ~38G |
 | **合计** | **135+ GB** |
 
-按苹果官方升配价（512G 一档，¥1500），这 135G 就是 **近半个档位的闪存钱**。如果你的盘是被缓存通到升配的，它帮你省下的就是整个一档。
+按苹果官方升配价（512G 一档，¥1500），这 135G 就是 **小半档的闪存钱**。如果你的盘是被缓存通到升配的，它帮你省下的就是整个一档。
 
 ## License
 
