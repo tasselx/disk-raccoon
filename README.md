@@ -1,5 +1,9 @@
 # 硬盘小浣熊 🦝 Disk Raccoon
 
+<p align="center">
+  <a href="./README.md">简体中文</a> ｜ <a href="./README.en.md">English</a>
+</p>
+
 > macOS 缓存清理 Agent。它吃东西之前，会先洗一洗。
 
 苹果的固态硬盘是焊死在主板上的，升一档 512G，加价 **¥1500**。
