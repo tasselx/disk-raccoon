@@ -83,11 +83,25 @@ cd ~/.config/disk-raccoon && ./install.sh
 
 ## 用法
 
-跟 agent 说：
+安装完成后，支持 **AI Agent 对话** 和 **终端全局命令** 两种方式：
+
+### 1. 在 AI Agent 中（推荐）
+
+在任意目录下，直接跟 Agent（Claude Code / Antigravity / Codex 等）说：
 
 - "帮我看看缓存"
 - "磁盘满了，能清点什么"
 - "Chrome 怎么占了 60G"
+
+### 2. 在终端直接作为 CLI 使用
+
+无需进入 Agent，在任意终端输入全局命令秒级查看体检报告：
+
+```bash
+disk-raccoon              # 极速输出当前缓存体检报告
+raccoon --min-mb=200      # 仅查看大于 200MB 的大头缓存
+disk-raccoon --json       # 以 JSON 格式输出供脚本解析
+```
 
 ## 实战记录
 

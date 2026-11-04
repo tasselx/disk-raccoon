@@ -89,11 +89,23 @@ if [[ $LINKED_COUNT -eq 0 ]]; then
     echo -e "${YELLOW}  ℹ 未检测到运行中的 Agent 配置目录，已默认链接至: ${default_dir}/disk-raccoon${NC}"
 fi
 
-# 5. 快速测试探针
+# 5. 安装终端全局 CLI 命令 (disk-raccoon / raccoon)
+CLI_BIN_DIR="${HOME}/.local/bin"
+mkdir -p "${CLI_BIN_DIR}"
+ln -sf "${TARGET_SOURCE}/scripts/fast-scan.py" "${CLI_BIN_DIR}/disk-raccoon"
+ln -sf "${TARGET_SOURCE}/scripts/fast-scan.py" "${CLI_BIN_DIR}/raccoon"
+echo -e "\n${BLUE}🚀 正在配置终端全局 CLI 命令...${NC}"
+echo -e "${GREEN}  ✓ 已创建全局命令:${NC} ${CLI_BIN_DIR}/disk-raccoon"
+echo -e "${GREEN}  ✓ 已创建短别名:${NC} ${CLI_BIN_DIR}/raccoon"
+
+# 6. 快速测试探针
 echo -e "\n${BLUE}⚡ 正在测试极速探针...${NC}"
 "${TARGET_SOURCE}/scripts/fast-scan.py" --min-mb=500 >/dev/null && echo -e "${GREEN}✓ 探针运行正常！${NC}"
 
-echo -e "\n${GREEN}🎉 安装完成！${NC}"
-echo -e "现在可以在你的 AI Agent（Claude Code / Antigravity 等）中输入："
-echo -e "  💬 ${YELLOW}\"帮我看看缓存\"${NC} 或 ${YELLOW}\"磁盘满了，能清点什么\"${NC}"
-echo -e "\n${BLUE}💡 提示：后续如有更新，只需在 ${TARGET_SOURCE} 运行 git pull 即可全 Agent 同步升级。${NC}"
+echo -e "\n${GREEN}🎉 全局安装完成！${NC}"
+echo -e "你可以通过以下两种方式随时随地使用："
+echo -e "\n  1️⃣  ${BLUE}在任意 AI Agent 中${NC}（Claude Code / Antigravity / Codex 等）："
+echo -e "      💬 对它说：${YELLOW}\"帮我看看缓存\"${NC} 或 ${YELLOW}\"磁盘满了，能清点什么\"${NC}"
+echo -e "\n  2️⃣  ${BLUE}在任意终端命令行中${NC}："
+echo -e "      ⌨️  直接输入：${YELLOW}disk-raccoon${NC} 或短命令 ${YELLOW}raccoon${NC}"
+echo -e "\n${BLUE}💡 提示：后续如有更新，只需在 ${TARGET_SOURCE} 运行 git pull 即可全局同步升级。${NC}"

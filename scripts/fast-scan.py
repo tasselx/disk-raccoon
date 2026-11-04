@@ -235,6 +235,20 @@ def match_rule_for_path(path):
     }
 
 def main():
+    if "-h" in sys.argv or "--help" in sys.argv:
+        print(f"🦝 disk-raccoon v{VERSION} - macOS 极速缓存体检工具\n")
+        print("用法:")
+        print("  disk-raccoon [选项]\n")
+        print("选项:")
+        print("  --min-mb=<MB>    设置报告的最小体积阈值（默认 50MB）")
+        print("  --json           以 JSON 格式输出")
+        print("  -h, --help       显示此帮助信息\n")
+        print("示例:")
+        print("  disk-raccoon")
+        print("  raccoon --min-mb=200")
+        print("  disk-raccoon --json")
+        return
+
     json_output = "--json" in sys.argv
     min_mb = DEFAULT_MIN_MB
     for arg in sys.argv:

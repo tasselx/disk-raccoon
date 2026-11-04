@@ -83,9 +83,25 @@ cd ~/.config/disk-raccoon && ./install.sh
 
 ## Usage
 
-Tell your agent:
+Once installed, use it via **AI Agent** or directly as a **Global Terminal CLI**:
+
+### 1. In AI Agents (Recommended)
+
+In any project or terminal, tell your agent (Claude Code / Antigravity / Codex, etc.):
 
 - "Check my caches"
+- "Disk is full, what can I clean?"
+- "Why is Chrome taking 60GB?"
+
+### 2. Directly as a Terminal CLI
+
+No AI agent required. Run anytime in any terminal for instant reports:
+
+```bash
+disk-raccoon              # Instant cache audit report
+raccoon --min-mb=200      # Only show items >= 200MB
+disk-raccoon --json       # Output JSON for scripts
+```
 - "Disk is full, what can I clean?"
 - "Why is Chrome using 60 GB?"
 
