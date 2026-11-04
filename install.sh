@@ -6,7 +6,7 @@
 
 set -e
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 REPO_URL="https://github.com/tasselx/disk-raccoon.git"
 INSTALL_DIR="${HOME}/.config/disk-raccoon"
 

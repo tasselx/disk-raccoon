@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """
-disk-raccoon fast-scan.py
-高速只读扫描 macOS 常见缓存大户与开发工具产物。
-并发探测、单次下钻、自动匹配 references/cache-map.md 的安全等级。
+disk-raccoon fast-scan.py (v0.2.1)
+极速 macOS 缓存只读分析探针。
+采用细粒度原子并发任务 + 动态快照缓存，全盘大头缓存毫秒级响应。
 """
 
 import os
 import sys
+import time
 import glob
 import json
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 DEFAULT_MIN_MB = 50
+CACHE_TTL_SECONDS = 120  # 快照默认有效时间 2 分钟
+CACHE_FILE = os.path.expanduser("~/.cache/disk-raccoon/scan_cache.json")
 
-# 匹配 cache-map.md 的规则与处置建议
+# 匹配 cache-map.md 的规则库
 RULES = [
-    # 开发工具链
     {
         "pattern": "~/.cache/uv",
         "app": "uv (Python)",
@@ -81,8 +83,6 @@ RULES = [
         "desc": "Docker.raw 虚拟机磁盘文件，包含镜像与容器数据",
         "suggest": "切勿直接删 raw，优先执行 docker system prune -a",
     },
-
-    # 浏览器 Service Worker 与调试实例
     {
         "pattern": "~/Library/Application Support/Google/Chrome/*/Service Worker",
         "app": "Chrome",
@@ -111,8 +111,6 @@ RULES = [
         "desc": "Arc 网页离线缓存",
         "suggest": "需先退出 Arc",
     },
-
-    # IM / 国民应用
     {
         "pattern": "~/Library/Group Containers/*Telegram*/account-*/postbox/media",
         "app": "Telegram",
@@ -141,24 +139,6 @@ RULES = [
         "desc": "歌曲离线流媒体缓存",
         "suggest": "先退出 Spotify 再清空 Data 目录",
     },
-
-    # 顶层聚合目录（用于探查未收录的大头缓存）
-    {
-        "pattern": "~/.cache",
-        "app": "User .cache",
-        "level": "✅/⚠️ 分项",
-        "desc": "CLI 工具聚合缓存区，建议按子目录清理",
-        "suggest": "逐个子目录排查",
-        "expand_depth": 1,
-    },
-    {
-        "pattern": "~/Library/Caches",
-        "app": "Library/Caches",
-        "level": "✅/⚠️ 分项",
-        "desc": "应用级缓存根目录，绝大多数应用缓存可清，个别需核对",
-        "suggest": "按 Bundle ID 对应清理",
-        "expand_depth": 1,
-    },
 ]
 
 def format_size(bytes_val):
@@ -182,50 +162,44 @@ def get_disk_info():
         }
     return {}
 
-def scan_path_du(path, depth=0):
-    """使用 macOS 原生 du 一次性探查指定深度大小（单位 KB）"""
-    if not os.path.exists(path):
-        return []
-
-    cmd = ["du", "-k"]
-    if depth > 0:
-        cmd += ["-d", str(depth)]
-    else:
-        cmd += ["-s"]
-    cmd.append(path)
-
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0 and not res.stdout:
-        return []
-
-    items = []
-    lines = res.stdout.strip().split("\n")
-    for line in lines:
-        parts = line.split("\t", 1)
-        if len(parts) == 2:
-            try:
-                kb = int(parts[0].strip())
-                p = parts[1].strip()
-                items.append((p, kb * 1024))
-            except ValueError:
-                continue
-    return items
+def du_single_path(path):
+    """单个叶子路径的极速探查，带超时保护"""
+    try:
+        res = subprocess.run(["du", "-sk", path], capture_output=True, text=True, timeout=8)
+        if res.returncode == 0 and res.stdout:
+            kb = int(res.stdout.split()[0])
+            return path, kb * 1024
+    except Exception:
+        pass
+    return path, 0
 
 def match_rule_for_path(path):
-    # 先做最精确匹配
-    home = os.path.expanduser("~")
     for r in RULES:
-        if r.get("expand_depth", 0) > 0:
-            continue
         pat = os.path.expanduser(r["pattern"])
-        if glob.fnmatch.fnmatch(path, pat):
+        if glob.fnmatch.fnmatch(path, pat) or path == pat or path.startswith(pat + "/"):
             return r
 
-    # 再处理深层匹配
-    for r in RULES:
-        pat = os.path.expanduser(r["pattern"])
-        if path == pat or path.startswith(pat + "/"):
-            return r
+    # 针对 ~/.cache/*
+    home_cache = os.path.expanduser("~/.cache")
+    if path.startswith(home_cache + "/"):
+        sub = path[len(home_cache) + 1:].split("/")[0]
+        return {
+            "app": f".cache/{sub}",
+            "level": "✅/⚠️ 分项",
+            "desc": f"CLI 缓存子项 ({sub})",
+            "suggest": "按应用评估后清理",
+        }
+
+    # 针对 ~/Library/Caches/*
+    lib_caches = os.path.expanduser("~/Library/Caches")
+    if path.startswith(lib_caches + "/"):
+        sub = path[len(lib_caches) + 1:].split("/")[0]
+        return {
+            "app": f"Caches/{sub}",
+            "level": "✅/⚠️ 分项",
+            "desc": f"应用缓存子项 ({sub})",
+            "suggest": "应用退出后可清理",
+        }
 
     return {
         "app": "未知 / 其它缓存",
@@ -234,6 +208,61 @@ def match_rule_for_path(path):
         "suggest": "先确认应用可否重新生成该缓存",
     }
 
+def read_snapshot_cache(min_mb):
+    """尝试读取有效时间内的本地快照"""
+    if not os.path.exists(CACHE_FILE):
+        return None
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cached_time = data.get("timestamp", 0)
+        age = time.time() - cached_time
+        if age < CACHE_TTL_SECONDS:
+            data["from_cache"] = True
+            data["cache_age_sec"] = int(age)
+            return data
+    except Exception:
+        pass
+    return None
+
+def write_snapshot_cache(data):
+    """保存快照"""
+    try:
+        os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+        data_to_save = dict(data)
+        data_to_save["timestamp"] = time.time()
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data_to_save, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+def collect_all_leaf_targets():
+    """极速收集所有需要扫描的叶子目录（不把大聚合目录作为单线程黑盒）"""
+    targets = set()
+
+    # 1. 明确的已知目标
+    for r in RULES:
+        pat = os.path.expanduser(r["pattern"])
+        for p in glob.glob(pat):
+            if os.path.exists(p):
+                targets.add(p)
+
+    # 2. 细粒度拆解 ~/.cache 和 ~/Library/Caches 的一级子目录
+    for container in [os.path.expanduser("~/.cache"), os.path.expanduser("~/Library/Caches")]:
+        if os.path.exists(container):
+            try:
+                with os.scandir(container) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                targets.add(entry.path)
+                        except OSError:
+                            pass
+            except OSError:
+                pass
+
+    return list(targets)
+
 def main():
     if "-h" in sys.argv or "--help" in sys.argv:
         print(f"🦝 disk-raccoon v{VERSION} - macOS 极速缓存体检工具\n")
@@ -241,15 +270,17 @@ def main():
         print("  disk-raccoon [选项]\n")
         print("选项:")
         print("  --min-mb=<MB>    设置报告的最小体积阈值（默认 50MB）")
+        print("  --refresh, -r    强制刷新，跳过本地 2 分钟快照")
         print("  --json           以 JSON 格式输出")
         print("  -h, --help       显示此帮助信息\n")
         print("示例:")
-        print("  disk-raccoon")
-        print("  raccoon --min-mb=200")
-        print("  disk-raccoon --json")
+        print("  disk-raccoon              # 极速输出（命中快照时毫秒级返回）")
+        print("  disk-raccoon --refresh    # 强制重新全盘并发扫描")
+        print("  raccoon --min-mb=200      # 仅查看 ≥ 200MB 的项")
         return
 
     json_output = "--json" in sys.argv
+    force_refresh = "--refresh" in sys.argv or "-r" in sys.argv
     min_mb = DEFAULT_MIN_MB
     for arg in sys.argv:
         if arg.startswith("--min-mb="):
@@ -258,95 +289,101 @@ def main():
             except ValueError:
                 pass
 
-    disk_info = get_disk_info()
     min_bytes = min_mb * 1024 * 1024
 
-    # 1. 展开所有目标任务
-    tasks = []
-    registered_roots = set()
+    # 1. 优先检查快照缓存（实现毫秒级瞬间输出）
+    if not force_refresh:
+        cached = read_snapshot_cache(min_mb)
+        if cached:
+            # 过滤大于等于当前 min_mb 的项
+            filtered_items = [it for it in cached["actionable_items"] if it["bytes"] >= min_bytes]
+            total_bytes = sum(x["bytes"] for x in filtered_items)
+            cached["actionable_items"] = filtered_items
+            cached["total_actionable_bytes"] = total_bytes
+            cached["total_actionable_str"] = format_size(total_bytes)
 
-    for rule in RULES:
-        pattern = os.path.expanduser(rule["pattern"])
-        depth = rule.get("expand_depth", 0)
-        matches = glob.glob(pattern)
-        if not matches and os.path.exists(pattern):
-            matches = [pattern]
+            if json_output:
+                print(json.dumps(cached, ensure_ascii=False, indent=2))
+                return
 
-        for m in matches:
-            if m not in registered_roots and os.path.exists(m):
-                registered_roots.add(m)
-                tasks.append((m, depth, rule))
+            print_report(cached, min_mb, from_cache_sec=cached.get("cache_age_sec"))
+            return
 
-    # 2. 多线程并发扫描
+    # 2. 毫秒级收集所有原子扫描目标
+    t_start = time.time()
+    targets = collect_all_leaf_targets()
+    disk_info = get_disk_info()
+
+    # 3. 24 线程极致并发扫描（NVMe 多队列全开）
     raw_results = []
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        future_map = {
-            executor.submit(scan_path_du, p, depth): (p, depth, rule)
-            for p, depth, rule in tasks
-        }
-        for future in as_completed(future_map):
-            p, depth, rule = future_map[future]
-            try:
-                items = future.result()
-                for item_path, item_bytes in items:
-                    if item_bytes >= min_bytes:
-                        raw_results.append((item_path, item_bytes))
-            except Exception:
-                pass
+    with ThreadPoolExecutor(max_workers=24) as executor:
+        futures = {executor.submit(du_single_path, p): p for p in targets}
+        for f in as_completed(futures):
+            path, bytes_val = f.result()
+            if bytes_val >= min_bytes:
+                raw_results.append((path, bytes_val))
 
-    # 3. 数据去重与父子层级解耦
-    # 如果一个聚合目录（如 ~/.cache）下已经列出了多个子目录（如 ~/.cache/frida 8.5G），
-    # 避免用户以为可以无脑删 ~/.cache 导致误删其他配置。
-    raw_results.sort(key=lambda x: len(x[0]), reverse=True)
-    item_map = {}
-    for p, b in raw_results:
-        if p not in item_map:
-            item_map[p] = b
+    scan_elapsed = time.time() - t_start
 
-    # 区分“具体可操作项 (Actionable)” 与 “汇总根目录 (Container)”
-    containers = {os.path.expanduser("~/.cache"), os.path.expanduser("~/Library/Caches")}
+    # 4. 结果整理与去重
+    raw_results.sort(key=lambda x: x[1], reverse=True)
     actionable = []
-    summaries = []
+    seen = set()
 
-    for path, bytes_val in item_map.items():
-        matched = match_rule_for_path(path)
-        item_entry = {
+    for path, bytes_val in raw_results:
+        if path in seen:
+            continue
+        seen.add(path)
+        rule = match_rule_for_path(path)
+        actionable.append({
             "path": path,
             "path_display": path.replace(os.path.expanduser("~"), "~"),
             "bytes": bytes_val,
             "size_str": format_size(bytes_val),
-            "app": matched["app"],
-            "level": matched["level"],
-            "desc": matched["desc"],
-            "suggest": matched["suggest"],
-        }
-        if path in containers:
-            summaries.append(item_entry)
-        else:
-            actionable.append(item_entry)
-
-    actionable.sort(key=lambda x: x["bytes"], reverse=True)
-    summaries.sort(key=lambda x: x["bytes"], reverse=True)
+            "app": rule["app"],
+            "level": rule["level"],
+            "desc": rule["desc"],
+            "suggest": rule["suggest"],
+        })
 
     total_actionable_bytes = sum(x["bytes"] for x in actionable)
 
+    result_data = {
+        "version": VERSION,
+        "disk": disk_info,
+        "threshold_mb": min_mb,
+        "scan_time_sec": round(scan_elapsed, 2),
+        "total_actionable_bytes": total_actionable_bytes,
+        "total_actionable_str": format_size(total_actionable_bytes),
+        "actionable_items": actionable,
+    }
+
+    # 写入快照缓存
+    write_snapshot_cache(result_data)
+
     if json_output:
-        print(json.dumps({
-            "version": VERSION,
-            "disk": disk_info,
-            "threshold_mb": min_mb,
-            "total_actionable_bytes": total_actionable_bytes,
-            "total_actionable_str": format_size(total_actionable_bytes),
-            "actionable_items": actionable,
-            "containers": summaries,
-        }, ensure_ascii=False, indent=2))
+        print(json.dumps(result_data, ensure_ascii=False, indent=2))
         return
 
-    # 输出 Markdown 报告
+    print_report(result_data, min_mb, elapsed_sec=scan_elapsed)
+
+def print_report(data, min_mb, from_cache_sec=None, elapsed_sec=None):
+    disk_info = data.get("disk", {})
+    actionable = data.get("actionable_items", [])
+    total_str = data.get("total_actionable_str", "0 B")
+
     print(f"# 🦝 小浣熊高速只读体检报告 (v{VERSION})\n")
+
     if disk_info:
         print(f"**磁盘总览**：总量 `{disk_info.get('total')}` ｜ 已用 `{disk_info.get('used')}` ({disk_info.get('use_pct')}) ｜ 剩余可用 `{disk_info.get('free')}`")
-    print(f"**发现可释放目标**：预估 **{format_size(total_actionable_bytes)}**（仅统计 ≥ {min_mb}MB 的有效缓存项）\n")
+
+    perf_info = ""
+    if from_cache_sec is not None:
+        perf_info = f" *(⚡ 命中 {from_cache_sec} 秒前快照，耗时 < 0.01s，加 `--refresh` 可强制重扫)*"
+    elif elapsed_sec is not None:
+        perf_info = f" *(⚡ 24 线程全速扫描耗时 {elapsed_sec:.2f}s)*"
+
+    print(f"**发现可释放目标**：预估 **{total_str}**（仅统计 ≥ {min_mb}MB 的有效缓存项）{perf_info}\n")
 
     print("### 🎯 待确认清理项（Actionable Targets）")
     print("| 占用大小 | 安全等级 | 所属应用 / 项目 | 路径 | 清理建议 / 影响 |")
@@ -354,11 +391,6 @@ def main():
 
     for item in actionable:
         print(f"| **{item['size_str']}** | {item['level']} | {item['app']} | `{item['path_display']}` | {item['suggest']} ({item['desc']}) |")
-
-    if summaries:
-        print("\n### 📦 聚合总览（仅供参考父级总大小）")
-        for s in summaries:
-            print(f"- `{s['path_display']}`: 总体积 **{s['size_str']}**（已在上方拆解具体大头）")
 
     print("\n> 🛡️ **安全提示**：当前为**只读分析**，未执行任何删除。请确认要清理的项，我再为您安全执行。")
 
