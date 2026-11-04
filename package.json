@@ -1,0 +1,33 @@
+{
+  "name": "disk-raccoon",
+  "version": "0.2.1",
+  "description": "macOS 缓存清理 Agent（小浣熊）与极速体检 CLI",
+  "main": "scripts/fast-scan.py",
+  "bin": {
+    "disk-raccoon": "./scripts/fast-scan.py",
+    "raccoon": "./scripts/fast-scan.py"
+  },
+  "scripts": {
+    "scan": "./scripts/fast-scan.py",
+    "test": "./scripts/fast-scan.py --min-mb=500"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tasselx/disk-raccoon.git"
+  },
+  "keywords": [
+    "macos",
+    "cache-cleaner",
+    "disk-cleanup",
+    "agent-skill",
+    "claude-code",
+    "antigravity",
+    "skills"
+  ],
+  "author": "tasselx",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tasselx/disk-raccoon/issues"
+  },
+  "homepage": "https://github.com/tasselx/disk-raccoon#readme"
+}

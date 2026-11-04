@@ -98,6 +98,15 @@ echo -e "\n${BLUE}🚀 正在配置终端全局 CLI 命令...${NC}"
 echo -e "${GREEN}  ✓ 已创建全局命令:${NC} ${CLI_BIN_DIR}/disk-raccoon"
 echo -e "${GREEN}  ✓ 已创建短别名:${NC} ${CLI_BIN_DIR}/raccoon"
 
+# 检查 CLI_BIN_DIR 是否在 PATH 环境变量中（PATH 自动自愈）
+if [[ ":$PATH:" != *":${CLI_BIN_DIR}:"* ]]; then
+    SHELL_PROFILE="${HOME}/.zshrc"
+    [[ "$SHELL" == *"bash"* ]] && SHELL_PROFILE="${HOME}/.bash_profile"
+    echo -e "${YELLOW}  ℹ 检测到 ${CLI_BIN_DIR} 尚未包含在当前 PATH 中，正在自动配置...${NC}"
+    echo "export PATH=\"${CLI_BIN_DIR}:\$PATH\"" >> "${SHELL_PROFILE}"
+    echo -e "${GREEN}  ✓ 已追加至 ${SHELL_PROFILE}，执行 source ${SHELL_PROFILE} 或重开终端后即可在任意位置使用 raccoon！${NC}"
+fi
+
 # 6. 快速测试探针
 echo -e "\n${BLUE}⚡ 正在测试极速探针...${NC}"
 "${TARGET_SOURCE}/scripts/fast-scan.py" --min-mb=500 >/dev/null && echo -e "${GREEN}✓ 探针运行正常！${NC}"

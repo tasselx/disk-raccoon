@@ -69,9 +69,11 @@ Path not on the map? Look it up first. If you can't figure out what it is, leave
 
 ## Install
 
-### Option 1: Skills CLI (Recommended)
+Choose the installation method that fits your workflow:
 
-Install globally across all supported AI coding agents (Claude Code, Antigravity, Cursor, Codex, Cline, and 20+ more via [skills.sh](https://skills.sh)):
+### Option 1: Skills CLI (Recommended for Agent Users)
+
+Install across 20+ supported AI coding agents (Claude Code, Antigravity, Cursor, Codex, Cline, etc.) via [skills.sh](https://skills.sh):
 
 ```bash
 npx skills add tasselx/disk-raccoon -g
@@ -79,15 +81,25 @@ npx skills add tasselx/disk-raccoon -g
 
 > 💡 Omit `-g` if you only want to install it for the current repository: `npx skills add tasselx/disk-raccoon`
 
-### Option 2: Smart Installer (Includes Native Terminal CLI)
+### Option 2: Smart Installer (Includes Native Terminal CLI & PATH Auto-Fix)
 
-Installs across all detected AI agents and registers `disk-raccoon` and `raccoon` commands directly into your shell PATH:
+Installs across all detected AI agents and registers `disk-raccoon` and `raccoon` directly into your shell PATH:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tasselx/disk-raccoon/main/install.sh | bash
 ```
 
-### Option 3: Manual Clone & Install
+### Option 3: Global npm Install (Recommended for Node.js Devs)
+
+Automatically creates global executables linked to npm's global bin directory:
+
+```bash
+npm install -g tasselx/disk-raccoon
+```
+
+> 💡 Zero-install instant run: You can also run `npx tasselx/disk-raccoon` anytime without installing!
+
+### Option 4: Manual Clone & Install
 
 ```bash
 git clone https://github.com/tasselx/disk-raccoon.git ~/.config/disk-raccoon

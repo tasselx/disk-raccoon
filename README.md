@@ -69,27 +69,37 @@
 
 ## 安装
 
-### 方式一：Skills CLI（推荐）
+你可以根据偏好选择以下任一方式：
 
-通过 [skills.sh](https://skills.sh) 官方包管理器一键安装到所有支持的 AI Agent（Claude Code、Antigravity、Cursor、Codex、Cline 等 20+ 款 Agent）：
+### 方式一：Skills CLI（推荐给 Agent 用户）
+
+通过 [skills.sh](https://skills.sh) 官方包管理器一键安装到所有支持的 AI Agent（Claude Code、Antigravity、Cursor、Codex、Cline 等 20+ 款）：
 
 ```bash
 npx skills add tasselx/disk-raccoon -g
 ```
 
-> 💡 如果只想在当前项目仓库中使用，去掉 `-g` 即可：`npx skills add tasselx/disk-raccoon`
+> 💡 如果只想在当前项目生效，去掉 `-g` 即可：`npx skills add tasselx/disk-raccoon`
 
-### 方式二：一键安装脚本（推荐，兼具终端全局 CLI 命令）
+### 方式二：一键全功能脚本（推荐，兼具终端全局 CLI 与 PATH 自愈）
 
-自动检测并软链接到所有 Agent，同时将 `disk-raccoon` 和 `raccoon` 注册为系统原生终端命令：
+自动检测并软链接到所有 Agent，同时将 `disk-raccoon` 和 `raccoon` 注册为系统原生终端命令（自动校验并自愈 PATH）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tasselx/disk-raccoon/main/install.sh | bash
 ```
 
-### 方式三：手动安装
+### 方式三：npm 全局安装（推荐给 Node.js 开发者）
 
-克隆仓库后运行内置安装器：
+自动将命令软链接到 npm 全局 bin 环境变量：
+
+```bash
+npm install -g tasselx/disk-raccoon
+```
+
+> 💡 免安装直接体验：也可以直接执行 `npx tasselx/disk-raccoon` 瞬时查看体检报告！
+
+### 方式四：手动克隆与安装
 
 ```bash
 git clone https://github.com/tasselx/disk-raccoon.git ~/.config/disk-raccoon
