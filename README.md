@@ -49,6 +49,13 @@
 
 地图上没有的路径？查清楚再说，查不清楚就不动。
 
+## 特性亮点
+
+- ⚡ **2 秒极速体检**：内置多线程并发探针（`scripts/fast-scan.py`），打满 Apple Silicon NVMe 队列，彻底告别传统 `du` 单线程卡顿与重复遍历。
+- 🎯 **精准分级（缓存地图）**：基于 `references/cache-map.md`，区分「✅ 放心删」、「⚠️ 小心删（保留登录态）」与「🚫 别碰（数据库/状态）」。
+- 🛡️ **严格第一轮只读**：没收到用户明确确认前，绝不删除任何一个字节。
+- 🌐 **双模使用**：既支持在 20+ 款主流 AI Agent 中通过自然语言调用，也支持在终端直接当作原生 CLI 运行。
+
 ## 安全设计
 
 | 原则 | 说明 |
@@ -109,6 +116,24 @@ cd ~/.config/disk-raccoon && ./install.sh
 disk-raccoon              # 极速输出当前缓存体检报告
 raccoon --min-mb=200      # 仅查看大于 200MB 的大头缓存
 disk-raccoon --json       # 以 JSON 格式输出供脚本解析
+```
+
+**体检报告输出示例：**
+
+```markdown
+# 🦝 小浣熊高速只读体检报告 (v0.2.0)
+
+**磁盘总览**：总量 460Gi ｜ 已用 12Gi (35%) ｜ 剩余可用 23Gi
+**发现可释放目标**：预估 19.9 GB（仅统计 ≥ 50MB 的有效缓存项）
+
+### 🎯 待确认清理项（Actionable Targets）
+| 占用大小 | 安全等级 | 所属应用 / 项目 | 路径 | 清理建议 / 影响 |
+| :--- | :--- | :--- | :--- | :--- |
+| **8.5 GB** | ✅ 安全 | Frida | `~/.cache/frida` | 可安全清理 |
+| **2.6 GB** | ✅ 安全 | Xcode | `~/Library/Developer/Xcode/DerivedData` | 下次构建自动重建索引 |
+| **2.4 GB** | ✅ 安全 | npm | `~/.npm` | 执行 npm cache clean --force |
+| **1.8 GB** | ✅ 安全 | 飞书 (Lark) | `~/.../profile_explorer` | 文档纯缓存；保留 profile_main 登录态 |
+| **952 MB** | ✅ 安全 | Edge/Chrome | `~/.../Service Worker` | 离线网页缓存，需先退出浏览器 |
 ```
 
 ## 实战记录

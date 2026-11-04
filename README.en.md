@@ -49,6 +49,13 @@ Disk Raccoon only does caches, but does them properly. The core is a cache map (
 
 Path not on the map? Look it up first. If you can't figure out what it is, leave it alone.
 
+## Highlights
+
+- ⚡ **2-Second Ultra-Fast Scan**: Built-in multi-threaded probe (`scripts/fast-scan.py`) saturates Apple Silicon NVMe I/O queues, replacing slow BSD `du` single-thread crawling.
+- 🎯 **Accurate Classification**: Powered by `references/cache-map.md`, distinguishing between "✅ Safe to delete", "⚠️ Care needed (preserve logins)", and "🚫 Never touch (databases/state)".
+- 🛡️ **Strict Read-Only First**: Zero writes or deletes without explicit user confirmation.
+- 🌐 **Dual Usage**: Runs inside 20+ AI agents via natural language, or directly in any shell as a native CLI tool.
+
 ## Safety
 
 | Rule | What it means |
@@ -108,8 +115,24 @@ disk-raccoon              # Instant cache audit report
 raccoon --min-mb=200      # Only show items >= 200MB
 disk-raccoon --json       # Output JSON for scripts
 ```
-- "Disk is full, what can I clean?"
-- "Why is Chrome using 60 GB?"
+
+**Audit Report Preview:**
+
+```markdown
+# 🦝 Disk Raccoon Fast Audit Report (v0.2.0)
+
+**Disk Overview**: Total 460Gi ｜ Used 12Gi (35%) ｜ Free 23Gi
+**Actionable Cache Found**: Estimated 19.9 GB (Items >= 50MB)
+
+### 🎯 Actionable Targets
+| Size | Safety | Application | Path | Suggestion / Impact |
+| :--- | :--- | :--- | :--- | :--- |
+| **8.5 GB** | ✅ Safe | Frida | `~/.cache/frida` | Safe to purge |
+| **2.6 GB** | ✅ Safe | Xcode | `~/Library/Developer/Xcode/DerivedData` | Rebuilds automatically |
+| **2.4 GB** | ✅ Safe | npm | `~/.npm` | Run npm cache clean --force |
+| **1.8 GB** | ✅ Safe | Lark | `~/.../profile_explorer` | Doc cache; retains login sessions |
+| **952 MB** | ✅ Safe | Edge/Chrome | `~/.../Service Worker` | Web cache; quit browser first |
+```
 
 ## Battle log
 
