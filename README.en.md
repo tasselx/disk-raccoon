@@ -62,24 +62,30 @@ Path not on the map? Look it up first. If you can't figure out what it is, leave
 
 ## Install
 
-### Option 1: One-Line Install (Recommended)
+### Option 1: Skills CLI (Recommended)
 
-Auto-detects installed AI agents on your Mac (Claude Code, Antigravity, Codex, Cline, etc.), installs centrally, and creates symlinks. Update once, sync everywhere:
+Install globally across all supported AI coding agents (Claude Code, Antigravity, Cursor, Codex, Cline, and 20+ more via [skills.sh](https://skills.sh)):
+
+```bash
+npx skills add tasselx/disk-raccoon -g
+```
+
+> 💡 Omit `-g` if you only want to install it for the current repository: `npx skills add tasselx/disk-raccoon`
+
+### Option 2: Smart Installer (Includes Native Terminal CLI)
+
+Installs across all detected AI agents and registers `disk-raccoon` and `raccoon` commands directly into your shell PATH:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tasselx/disk-raccoon/main/install.sh | bash
 ```
 
-### Option 2: Manual Install
-
-Clone the repository and run the smart installer:
+### Option 3: Manual Clone & Install
 
 ```bash
 git clone https://github.com/tasselx/disk-raccoon.git ~/.config/disk-raccoon
 cd ~/.config/disk-raccoon && ./install.sh
 ```
-
-*(You can also clone directly into your agent's directory, such as `~/.claude/skills/disk-raccoon` or `~/.gemini/skills/disk-raccoon`)*
 
 ## Usage
 
