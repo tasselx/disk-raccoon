@@ -62,11 +62,24 @@
 
 ## 安装
 
+### 方式一：一键安装（推荐）
+
+自动检测 Mac 上已安装的 AI Agent（Claude Code、Antigravity、Codex、Cline 等），统一安装并建立软链接，一次更新全 Agent 同步：
+
 ```bash
-git clone https://github.com/orange2ai/disk-raccoon ~/.claude/skills/disk-raccoon
+curl -fsSL https://raw.githubusercontent.com/tasselx/disk-raccoon/main/install.sh | bash
 ```
 
-支持 SKILL.md 协议的 agent 都能用（Claude Code、Cola 等）。
+### 方式二：手动安装
+
+克隆仓库后运行内置安装器：
+
+```bash
+git clone https://github.com/tasselx/disk-raccoon.git ~/.config/disk-raccoon
+cd ~/.config/disk-raccoon && ./install.sh
+```
+
+*(也支持直接 clone 到特定 Agent 目录，如 `~/.claude/skills/disk-raccoon` 或 `~/.gemini/skills/disk-raccoon`)*
 
 ## 用法
 

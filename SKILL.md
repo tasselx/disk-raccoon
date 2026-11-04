@@ -1,5 +1,6 @@
 ---
 name: disk-raccoon
+version: 0.2.0
 description: >
   macOS 缓存清理 Agent（小浣熊）。对 Mac 上的开发工具缓存、应用缓存做只读体检，
   按缓存地图的安全等级判断哪些能删，经用户确认后执行清理。
@@ -7,7 +8,7 @@ description: >
   帮我瘦身、cache cleaner、磁盘体检。只管缓存，不做应用卸载和系统优化。
 ---
 
-# 小浣熊 🦝 清理工作手册
+# 小浣熊 🦝 清理工作手册 (v0.2.0)
 
 浣熊吃东西之前，会先洗一洗。你删文件之前，先看缓存地图。
 
@@ -22,25 +23,28 @@ description: >
 
 ## 工作流
 
-### 第一轮：体检（只读）
+### 第一轮：体检（只读，极速探针）
 
-依次扫描并汇总（存在才扫，不存在的跳过）：
+优先使用内置的多线程并发探针（耗时约 2~3 秒，零依赖，自动对比缓存地图并按安全等级格式化）：
+
+```bash
+python3 scripts/fast-scan.py
+```
+
+*若在没有脚本的环境或需要手工单项复测，使用以下单次深度探测（避免二次重复扫描与串行阻塞）：*
 
 ```bash
 # 磁盘总量
 df -h /
 
-# 缓存地图上的候选路径（见 references/cache-map.md 全表）
-du -sh ~/.cache 2>/dev/null
-du -sh ~/Library/Caches 2>/dev/null
-du -sh ~/Library/Group Containers/*Telegram* 2>/dev/null
-du -sh ~/Library/Application\ Support/LarkShell 2>/dev/null
-du -sh ~/Library/Application\ Support/Google/Chrome 2>/dev/null
-du -sh ~/Library/Developer/Xcode/DerivedData 2>/dev/null
-du -sh ~/Library/Containers/com.tencent.xinWeChat 2>/dev/null
+# 针对具体大头并发扫描（单次完成总计与一级子目录拆解，不跑两次）
+du -d 1 -h ~/.cache 2>/dev/null | sort -rh | head -n 10
+du -d 1 -h ~/Library/Caches 2>/dev/null | sort -rh | head -n 10
+du -d 1 -h ~/Library/Developer/Xcode/DerivedData 2>/dev/null
+du -sh ~/Library/Application\ Support/Google/Chrome/*/Service\ Worker 2>/dev/null
+du -sh ~/Library/Application\ Support/LarkShell/aha/users/*/profile_explorer 2>/dev/null
+du -sh ~/Library/Group\ Containers/*Telegram*/account-*/postbox/media 2>/dev/null
 ```
-
-对可疑目录，下钻一层找大头：`du -sh <dir>/* | sort -rh | head`。
 
 ### 第二轮：判断
 

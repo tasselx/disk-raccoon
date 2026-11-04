@@ -62,11 +62,24 @@ Path not on the map? Look it up first. If you can't figure out what it is, leave
 
 ## Install
 
+### Option 1: One-Line Install (Recommended)
+
+Auto-detects installed AI agents on your Mac (Claude Code, Antigravity, Codex, Cline, etc.), installs centrally, and creates symlinks. Update once, sync everywhere:
+
 ```bash
-git clone https://github.com/orange2ai/disk-raccoon ~/.claude/skills/disk-raccoon
+curl -fsSL https://raw.githubusercontent.com/tasselx/disk-raccoon/main/install.sh | bash
 ```
 
-Works with any agent that supports SKILL.md (Claude Code, Cola, etc.).
+### Option 2: Manual Install
+
+Clone the repository and run the smart installer:
+
+```bash
+git clone https://github.com/tasselx/disk-raccoon.git ~/.config/disk-raccoon
+cd ~/.config/disk-raccoon && ./install.sh
+```
+
+*(You can also clone directly into your agent's directory, such as `~/.claude/skills/disk-raccoon` or `~/.gemini/skills/disk-raccoon`)*
 
 ## Usage
 
