@@ -1,7 +1,7 @@
 {
   "name": "disk-raccoon",
-  "version": "0.2.1",
-  "description": "macOS 缓存清理 Agent（小浣熊）与极速体检 CLI",
+  "version": "0.3.0",
+  "description": "macOS 缓存清理 Agent（小浣熊）与极速体检/安全清理 CLI",
   "main": "scripts/fast-scan.py",
   "bin": {
     "disk-raccoon": "./scripts/fast-scan.py",
@@ -9,7 +9,9 @@
   },
   "scripts": {
     "scan": "./scripts/fast-scan.py",
-    "test": "./scripts/fast-scan.py --min-mb=500"
+    "clean": "./scripts/fast-scan.py clean",
+    "history": "./scripts/fast-scan.py history",
+    "test": "python3 -m unittest tests/test_raccoon.py"
   },
   "repository": {
     "type": "git",
@@ -22,6 +24,7 @@
     "agent-skill",
     "claude-code",
     "antigravity",
+    "cursor",
     "skills"
   ],
   "author": "tasselx",

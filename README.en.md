@@ -4,9 +4,9 @@
   <a href="./README.md">简体中文</a> ｜ <a href="./README.en.md">English</a>
 </p>
 
-An AI skill that cleans up caches on your Mac. Install it for your AI coding assistant, and it will find the cache folders quietly eating tens of gigabytes of your disk, figure out which ones are safe to delete, and clean them up.
+An AI skill and ultra-fast terminal CLI that cleans up caches on your Mac. Install it for your AI coding assistant, and it will find the cache folders quietly eating tens of gigabytes of your disk, figure out which ones are safe to delete, and clean them up safely.
 
-Apple solders the SSD to the logic board. Adding 512 GB costs **~$200**. The first time this skill ran, it cleared **135+ GB** overnight, nothing broke. If caches were what filled your disk, one cleanup saves you that upgrade fee. **Probably the most valuable skill in your agent's toolbox.**
+Apple solders the SSD to the logic board. Adding 512 GB costs **~$200 (¥1500)**. The first time this skill ran, it cleared **135+ GB** overnight, nothing broke. If caches were what filled your disk, one cleanup saves you that upgrade fee. **Probably the most valuable skill in your agent's toolbox.**
 
 ## Origin
 
@@ -20,7 +20,7 @@ Same folder. Half garbage, half state. A broom can tell you what's big. It can't
 
 So I let the AI decide. It checked each directory — what app it belongs to, what it stores, what happens if you delete it — and gave me a list. I followed the list, cleared **135+ GB** overnight, nothing broke.
 
-It worked so well, I thought: I have another Mac, and my friends have Macs too. Why not turn this into a skill I can share? That's how this project was born.
+It worked so well, I turned this into a dual-mode project featuring both an **AI Agent Skill** and a **Native Terminal CLI**.
 
 ## Why a raccoon
 
@@ -33,71 +33,72 @@ Most cleanup tools scan your whole disk, sort by size, and let you tick boxes. T
 - Lark piles up 42 GB of document cache, buried deep in `LarkShell/aha`, invisible in Finder
 - Chrome's Service Worker eats 30 GB, but the IndexedDB next door holds real data
 - Telegram's media cache grows past 100 GB — the GitHub issue has been open eight years
-- `~/.cache/uv` quietly eats 56 GB
+- `~/.cache/uv` quietly eats 56 GB; `~/.gradle/caches` builds up 40+ GB of historical jars
+- `pnpm store` unpruned packages and `Bun` cache fill up small SSDs
 
-**This skill isn't about deleting. It's about knowing what's safe to delete.** Wash first, eat second.
+**This tool isn't about deleting. It's about knowing what's safe to delete.** Wash first, eat second.
 
-## It does one thing: caches
+## It does one thing: caches, done properly
 
 Uninstalling apps, managing background processes, system optimization — [Mole](https://github.com/tw93/Mole) 🐹 already does all that, open source and free.
 
-Disk Raccoon only does caches, but does them properly. The core is a cache map (`references/cache-map.md`) that tags every path with a safety level:
+Disk Raccoon only does caches, but does them properly. Powered by a single structured truth (`data/rules.json`) and cache map (`references/cache-map.md`), it marks clear safety levels:
 
-- ✅ **Safe to delete**: `~/.cache/uv`, browser Service Workers, Telegram media cache…
-- ⚠️ **Delete with care**: Lark `LarkShell/aha` (only delete `profile_explorer`; `profile_main` holds login state), WeChat (use the in-app cleanup instead)…
-- 🚫 **Do not touch**: message databases, Keychain, anything that holds state
+- ✅ **Safe to delete**: `uv`, `pnpm store`, `Gradle`, browser Service Workers, Telegram media, Xcode builds, Hugging Face Hub models, Cargo source…
+- ⚠️ **Delete with care**: Lark `LarkShell/aha` (only delete `profile_explorer`; `profile_main` holds login sessions), Xcode Archives, Ollama (clean by model), WeChat (in-app cleanup recommended)…
+- 🚫 **Never touch**: message databases, Keychains, session stores (enforced by a built-in Kill Switch)
 
 Path not on the map? Look it up first. If you can't figure out what it is, leave it alone.
 
-## Highlights
+## Highlights (v0.3.0 Ultimate)
 
-- ⚡ **2-Second Ultra-Fast Scan**: Built-in multi-threaded probe (`scripts/fast-scan.py`) saturates Apple Silicon NVMe I/O queues, replacing slow BSD `du` single-thread crawling.
-- 🎯 **Accurate Classification**: Powered by `references/cache-map.md`, distinguishing between "✅ Safe to delete", "⚠️ Care needed (preserve logins)", and "🚫 Never touch (databases/state)".
-- 🛡️ **Strict Read-Only First**: Zero writes or deletes without explicit user confirmation.
-- 🌐 **Dual Usage**: Runs inside 20+ AI agents via natural language, or directly in any shell as a native CLI tool.
+- ⚡ **2-Second Ultra-Fast Scan**: Multi-threaded probe (`scripts/fast-scan.py`) saturates Apple Silicon NVMe I/O queues.
+- 📸 **APFS Local Snapshots Insight**: Automatically detects Time Machine local snapshots locking disk space.
+- 🎯 **Single Source of Truth (No Blind Spots)**: Powered by `data/rules.json`, covering AI/LLMs (HF/Ollama), modern frontend (pnpm/Bun), mobile/backend (Gradle/Xcode/SwiftPM/Cargo), and Application Support depths.
+- 🛡️ **Military-Grade Safety Defenses**:
+  - **Native Finder "Put Back" Support**: Moves items via Finder AppleScript, allowing one-click **"Put Back"** from the macOS Trash.
+  - **Symlink Traversal Protection**: Symlinks are strictly unlinked without recursing into target directories.
+  - **Deep Content Guard**: Automatically halts and alerts if directories secretly contain `.pem`, `.key`, `.env`, or credential files.
+  - **Kill Switch & Concurrency Lock**: Hardcoded physical blockage for Keychains/databases, with process mutex locks.
+  - **Native First**: Prioritizes official CLI cleanup tools (`pnpm store prune`, `uv cache clean`, etc.).
+- 💻 **Adaptive Dual-Mode Output**: High-quality ANSI color output with wide-character (CJK) alignment in interactive terminals; standard GFM Markdown for AI Agents.
+- 💰 **Savings Calculator & Battle Log**: Converts freed space into estimated hardware cost savings ($200 per 512GB), tracked via `raccoon history`.
 
 ## Safety
 
 | Rule | What it means |
 |---|---|
-| Read-only first | First pass only looks, never deletes. Report comes first |
-| Know before you cut | Unknown paths stay untouched until identified |
-| Trash over delete | If it can go to Trash, it goes to Trash |
-| State is off limits | Login sessions, chat history, Keychain — never touched |
+| Read-only first | First pass only looks, never deletes. Detailed audit report comes first |
+| Single source of truth | Known rules guide every action; unknown paths stay untouched |
+| Native commands first | Runs official cleanup commands (e.g. `pnpm store prune`) whenever available |
+| Native Trash with Put Back | Items go through Finder Trash and can be restored with "Put Back" |
+| Anti-traversal | Symlinks are unlinked without deleting target contents |
+| Deep Content Guard | Subdirectories with `.env` or private keys trigger immediate safety aborts |
+| State is off limits | Login sessions, chat history, Keychain — hardcoded Kill Switch |
 | Quit before cleaning | Close the app first so it doesn't rebuild while you delete |
 | sudo is yours | System-level commands are generated, not executed — you run them |
 
 ## Install
 
-Choose the installation method that fits your workflow:
+### Option 1: Smart Installer (Recommended — Agent Symlinks & Native Terminal CLI)
 
-### Option 1: Skills CLI (Recommended for Agent Users)
-
-Install across 20+ supported AI coding agents (Claude Code, Antigravity, Cursor, Codex, Cline, etc.) via [skills.sh](https://skills.sh):
-
-```bash
-npx skills add tasselx/disk-raccoon -g
-```
-
-> 💡 Omit `-g` if you only want to install it for the current repository: `npx skills add tasselx/disk-raccoon`
-
-### Option 2: Smart Installer (Includes Native Terminal CLI & PATH Auto-Fix)
-
-Installs across all detected AI agents and registers `disk-raccoon` and `raccoon` directly into your shell PATH:
+Installs across 20+ detected AI agents (Claude Code, Antigravity, Cursor, Windsurf, Codex, Cline, etc.) and registers `raccoon` into your shell PATH:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tasselx/disk-raccoon/main/install.sh | bash
 ```
 
-### Option 3: Global npm Install (Recommended for Node.js Devs)
+### Option 2: Skills CLI (For AI Agents)
 
-Automatically creates global executables linked to npm's global bin directory:
+```bash
+npx skills add tasselx/disk-raccoon -g
+```
+
+### Option 3: Global npm Install
 
 ```bash
 npm install -g tasselx/disk-raccoon
 ```
-
-> 💡 Zero-install instant run: You can also run `npx tasselx/disk-raccoon` anytime without installing!
 
 ### Option 4: Manual Clone & Install
 
@@ -108,56 +109,39 @@ cd ~/.config/disk-raccoon && ./install.sh
 
 ## Usage
 
-Once installed, use it via **AI Agent** or directly as a **Global Terminal CLI**:
-
 ### 1. In AI Agents (Recommended)
 
-In any project or terminal, tell your agent (Claude Code / Antigravity / Codex, etc.):
+In any project or terminal, tell your agent:
 
-- "Check my caches"
-- "Disk is full, what can I clean?"
-- "Why is Chrome taking 60GB?"
+- *"Check my caches, disk is full"*
+- *"Why is Chrome taking so much space?"*
+- *"Confirm cleaning targets 1, 3, 5"*
 
 ### 2. Directly as a Terminal CLI
 
-No AI agent required. Run anytime in any terminal for instant reports:
-
 ```bash
-disk-raccoon              # Instant cache audit report
-raccoon --min-mb=200      # Only show items >= 200MB
-disk-raccoon --json       # Output JSON for scripts
+# Instant cache audit report (includes APFS snapshots)
+raccoon
+
+# Interactive terminal cleanup
+raccoon clean
+
+# Clean all items marked as ✅ Safe
+raccoon clean --all-safe
+
+# Dry-run mode (preview without deleting)
+raccoon clean --dry-run
+
+# View cumulative battle log and money saved
+raccoon history
+
+# Only show items >= 200MB
+raccoon --min-mb=200
 ```
-
-**Audit Report Preview:**
-
-```markdown
-# 🦝 Disk Raccoon Fast Audit Report (v0.2.0)
-
-**Disk Overview**: Total 460Gi ｜ Used 12Gi (35%) ｜ Free 23Gi
-**Actionable Cache Found**: Estimated 19.9 GB (Items >= 50MB)
-
-### 🎯 Actionable Targets
-| Size | Safety | Application | Path | Suggestion / Impact |
-| :--- | :--- | :--- | :--- | :--- |
-| **8.5 GB** | ✅ Safe | Frida | `~/.cache/frida` | Safe to purge |
-| **2.6 GB** | ✅ Safe | Xcode | `~/Library/Developer/Xcode/DerivedData` | Rebuilds automatically |
-| **2.4 GB** | ✅ Safe | npm | `~/.npm` | Run npm cache clean --force |
-| **1.8 GB** | ✅ Safe | Lark | `~/.../profile_explorer` | Doc cache; retains login sessions |
-| **952 MB** | ✅ Safe | Edge/Chrome | `~/.../Service Worker` | Web cache; quit browser first |
-```
-
-## Battle log
-
-| Cache | Freed |
-|---|---|
-| `~/.cache/uv` (Python package cache) | ~56 GB |
-| Chrome Service Worker + ChromeDebug | ~51 GB |
-| Lark `LarkShell/aha` document cache | ~38 GB |
-| **Total** | **135+ GB** |
 
 ## Contributing
 
-The cache map is a living document. Every time we clean a new type of cache, we add it. If you've hit a cache folder we haven't covered, open an issue or submit a PR — help this raccoon learn more about your disk 🦝
+The cache map is a living document. If you hit a new cache folder or caveat, add it to `data/rules.json` and submit a PR — help this raccoon learn more about your disk 🦝!
 
 ## License
 

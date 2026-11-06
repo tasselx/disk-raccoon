@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# disk-raccoon 智能安装脚本
-# 自动探测系统中的 AI Agent 环境并创建软链接
+# disk-raccoon 智能安装脚本 (v0.3.0)
+# 自动探测系统中的 AI Agent 环境并创建软链接与终端原生 CLI
 #
 
 set -e
 
-VERSION="0.2.1"
+VERSION="0.3.0"
 REPO_URL="https://github.com/tasselx/disk-raccoon.git"
 INSTALL_DIR="${HOME}/.config/disk-raccoon"
 
@@ -53,6 +53,12 @@ else
     fi
 fi
 
+# 保证数据目录在全局配置中存在软链接
+mkdir -p "${INSTALL_DIR}"
+if [[ "${TARGET_SOURCE}" != "${INSTALL_DIR}" ]]; then
+    ln -sfn "${TARGET_SOURCE}/data" "${INSTALL_DIR}/data"
+fi
+
 # 赋予探针执行权限
 chmod +x "${TARGET_SOURCE}/scripts/fast-scan.py"
 
@@ -63,6 +69,8 @@ declare -a AGENT_DIRS=(
     "${HOME}/.gemini/config/skills"          # Antigravity Config
     "${HOME}/.codex/skills"                  # Codex
     "${HOME}/.cline/skills"                  # Cline
+    "${HOME}/.cursor/skills"                 # Cursor Skills
+    "${HOME}/.codeium/windsurf/skills"       # Windsurf
 )
 
 LINKED_COUNT=0
@@ -70,7 +78,6 @@ LINKED_COUNT=0
 echo -e "\n${BLUE}🔍 正在探测已安装的 AI Agent 环境...${NC}"
 
 for dir in "${AGENT_DIRS[@]}"; do
-    # 如果父目录存在，说明安装了该 agent，或者直接为常用 agent 自动创建
     parent_dir="$(dirname "$dir")"
     if [[ -d "$parent_dir" ]]; then
         mkdir -p "$dir"
@@ -81,7 +88,7 @@ for dir in "${AGENT_DIRS[@]}"; do
     fi
 done
 
-# 如果没有任何已识别的 agent 目录，默认至少创建 Claude Code 与通用 skills 目录
+# 如果没有任何已识别的 agent 目录，默认至少创建 Claude Code 目录
 if [[ $LINKED_COUNT -eq 0 ]]; then
     default_dir="${HOME}/.claude/skills"
     mkdir -p "$default_dir"
@@ -98,10 +105,11 @@ echo -e "\n${BLUE}🚀 正在配置终端全局 CLI 命令...${NC}"
 echo -e "${GREEN}  ✓ 已创建全局命令:${NC} ${CLI_BIN_DIR}/disk-raccoon"
 echo -e "${GREEN}  ✓ 已创建短别名:${NC} ${CLI_BIN_DIR}/raccoon"
 
-# 检查 CLI_BIN_DIR 是否在 PATH 环境变量中（PATH 自动自愈）
-if [[ ":$PATH:" != *":${CLI_BIN_DIR}:"* ]]; then
-    SHELL_PROFILE="${HOME}/.zshrc"
-    [[ "$SHELL" == *"bash"* ]] && SHELL_PROFILE="${HOME}/.bash_profile"
+# 检查 CLI_BIN_DIR 是否在 PATH 环境变量中（PATH 幂等性自愈）
+SHELL_PROFILE="${HOME}/.zshrc"
+[[ "$SHELL" == *"bash"* ]] && SHELL_PROFILE="${HOME}/.bash_profile"
+
+if ! grep -q "export PATH=.*${CLI_BIN_DIR}" "${SHELL_PROFILE}" 2>/dev/null && [[ ":$PATH:" != *":${CLI_BIN_DIR}:"* ]]; then
     echo -e "${YELLOW}  ℹ 检测到 ${CLI_BIN_DIR} 尚未包含在当前 PATH 中，正在自动配置...${NC}"
     echo "export PATH=\"${CLI_BIN_DIR}:\$PATH\"" >> "${SHELL_PROFILE}"
     echo -e "${GREEN}  ✓ 已追加至 ${SHELL_PROFILE}，执行 source ${SHELL_PROFILE} 或重开终端后即可在任意位置使用 raccoon！${NC}"
@@ -109,12 +117,14 @@ fi
 
 # 6. 快速测试探针
 echo -e "\n${BLUE}⚡ 正在测试极速探针...${NC}"
-"${TARGET_SOURCE}/scripts/fast-scan.py" --min-mb=500 >/dev/null && echo -e "${GREEN}✓ 探针运行正常！${NC}"
+"${TARGET_SOURCE}/scripts/fast-scan.py" --min-mb=500 --md >/dev/null && echo -e "${GREEN}✓ 探针运行正常！${NC}"
 
 echo -e "\n${GREEN}🎉 全局安装完成！${NC}"
-echo -e "你可以通过以下两种方式随时随地使用："
-echo -e "\n  1️⃣  ${BLUE}在任意 AI Agent 中${NC}（Claude Code / Antigravity / Codex 等）："
+echo -e "你可以通过以下方式随时随地使用："
+echo -e "\n  1️⃣  ${BLUE}在任意 AI Agent 中${NC}（Claude Code / Antigravity / Cursor 等）："
 echo -e "      💬 对它说：${YELLOW}\"帮我看看缓存\"${NC} 或 ${YELLOW}\"磁盘满了，能清点什么\"${NC}"
 echo -e "\n  2️⃣  ${BLUE}在任意终端命令行中${NC}："
-echo -e "      ⌨️  直接输入：${YELLOW}disk-raccoon${NC} 或短命令 ${YELLOW}raccoon${NC}"
+echo -e "      ⌨️  极速体检：${YELLOW}raccoon${NC}"
+echo -e "      🧹 安全清理：${YELLOW}raccoon clean${NC} 或 ${YELLOW}raccoon clean --all-safe${NC}"
+echo -e "      📈 累计战报：${YELLOW}raccoon history${NC}"
 echo -e "\n${BLUE}💡 提示：后续如有更新，只需在 ${TARGET_SOURCE} 运行 git pull 即可全局同步升级。${NC}"

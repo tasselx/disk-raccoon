@@ -1,107 +1,118 @@
-# 缓存地图（Cache Map）
+# 缓存地图（Cache Map v0.3.0）
 
-macOS 缓存知识库。每条路径标注：是什么、为什么大、能删什么、不能删什么、删除前提。
+macOS 缓存知识库。每条路径标注：所属类别、安全等级、为什么大、清理建议、原生清理命令与避坑事项。
 
-等级：✅ 安全 / ⚠️ 注意 / 🚫 别碰
+安全等级说明：
+- ✅ **安全**：可再生缓存、包下载缓存或离线资源，清理后应用按需自动重建或重新拉取。
+- ⚠️ **注意**：包含部分关键配置、本地权重或易混淆目录（如数据库与登录态混在同级），需按指定范围操作。
+- 🚫 **别碰**：绝对禁止清单，包含登录态、本地消息数据库、钥匙串等核心数据。
 
-> 这张地图是活的。每清一次新缓存，把路径和教训补进来。地图上没有的路径，查清楚之前不动。
+> 🦝 **小浣熊原则**：这张地图由 `data/rules.json` 结构化驱动。未在地图上且查不清的应用目录，查清楚之前坚决不动。
 
 ---
 
-## 开发工具链
+## 1. 🤖 AI / 深度学习框架
+
+### ✅ ~/.cache/huggingface/hub — Hugging Face Hub 权重
+- **是什么**：Transformers / Diffusers 预训练模型与数据集权重缓存，单模型动辄数 GB 到数十 GB。
+- **怎么清**：可安全清理不需要的模型权重目录；也可使用 `huggingface-cli delete-cache` 交互式清理。
+- **后果**：下次调用该模型时会自动从 Hub 重新下载。
+
+### ⚠️ ~/.ollama/models — Ollama 本地模型
+- **是什么**：Ollama 本地大模型权重（blob 文件集合），体积通常在 20GB ~ 100GB+。
+- **怎么清**：**切勿直接暴力删除 blob 目录**，优先执行 `ollama list` 查看模型，使用 `ollama rm <模型名>` 精确卸载废弃模型。
+- **后果**：删掉的模型无法离线运行，需重新 `ollama pull`。
+
+### ✅ ~/.cache/torch — PyTorch 权重缓存
+- **是什么**：torchvision、torchaudio 模型权重与 Hub 扩展缓存。
+- **怎么清**：可安全清空 `checkpoints` 或 hub 目录。
+
+---
+
+## 2. 🛠️ 开发工具链与包管理器
 
 ### ✅ ~/.cache/uv — uv (Python) 包缓存
-- **是什么**：uv 下载过的包的硬链接副本，用得越久越大
-- **实战战果**：56G
-- **怎么清**：优先 `~/.local/bin/uv cache clean`（或 PATH 里的 `uv cache clean`）
-- **坑**：uv 不在 PATH 时直接删目录会撞 agent 的 `rm -rf` 安全护栏，用 `python3 -c "import shutil; shutil.rmtree(...)"` 绕行；`uv cache clean` 对残缺缓存可能报 `No such file or directory`，报错不代表失败，删完复测即可
-- **后果**：下次装包重新下载，无状态丢失
+- **实战战果**：单机最高释放 56GB。
+- **怎么清**：优先调用 `uv cache clean`；若不在 PATH 中可清理该目录。
+- **后果**：下次安装包重新在线拉取，无状态丢失。
 
-### ✅ npm / pip / yarn 缓存
-- `npm cache clean --force`（路径 `~/.npm`）
-- `pip cache purge`（路径 `~/Library/Caches/pip`）
-- `yarn cache clean`
+### ✅ npm / pnpm / yarn / Bun / pip
+- **pnpm** (`~/Library/pnpm/store` / `~/.local/share/pnpm/store`)：优先执行 `pnpm store prune`，安全清理全局未被引用的包。
+- **npm** (`~/.npm`)：执行 `npm cache clean --force`。
+- **pip** (`~/Library/Caches/pip`)：执行 `pip cache purge`。
+- **Yarn** (`~/.yarn/berry/cache` 或 `~/Library/Caches/Yarn`)：执行 `yarn cache clean`。
+- **Bun** (`~/.bun/install/cache`)：可直接删除缓存目录。
+
+### ✅ Gradle / Maven / Go / Rust / SwiftPM / CocoaPods
+- **Gradle** (`~/.gradle/caches`)：Android/Java 构建大户，常年累积几十 GB。清空后下次构建会自动重新拉取 wrapper 和 jar 包。
+- **Maven** (`~/.m2/repository`)：⚠️ 本地依赖仓库。仅建议在磁盘极度紧张或依赖包损坏时选择性清理。
+- **Go** (`~/Library/Caches/go-build`)：执行 `go clean -cache`。
+- **Rust Cargo** (`~/.cargo/registry/cache` 与 `~/.cargo/registry/src`)：压缩包与解压后的依赖源码，删后按需重新拉取/解压。
+- **SwiftPM** (`~/Library/Caches/org.swift.swiftpm`)：Swift Package Manager 依赖克隆与二进制工件。
+- **CocoaPods** (`~/Library/Caches/CocoaPods`)：执行 `pod cache clean --all`。
+- **Homebrew** (`~/Library/Caches/Homebrew`)：执行 `brew cleanup -s`。
+
+---
+
+## 3. 💻 IDE 与移动端开发
 
 ### ✅ Xcode DerivedData — ~/Library/Developer/Xcode/DerivedData
-- **是什么**：每个项目的编译产物和索引，Xcode 常见的几十 G 大户
-- **后果**：下次打开项目重新编译，第一次会慢
-- **连带**：`~/Library/Developer/CoreSimulator/Caches`、旧 iOS DeviceSupport 也可清
+- **是什么**：项目编译产物、模块中间缓存与索引，Xcode 动辄几十 GB 的常客。
+- **后果**：下次构建重新生成索引，首次构建稍慢。
+- **连带安全项**：`~/Library/Developer/CoreSimulator/Caches`（模拟器运行时缓存）。
 
-### ✅ Go / Rust / CocoaPods
-- `go clean -cache`（`~/Library/Caches/go-build`）
-- `cargo cache` 或删 `~/.cargo/registry/cache`
-- `pod cache clean --all`
+### ⚠️ Xcode Archives — ~/Library/Developer/Xcode/Archives
+- **是什么**：历史打包归档，包含 dSYM 调试符号。已发版且废弃的老项目归档可选择性清理。
 
-### ✅ Docker — ~/Library/Containers/com.docker.docker/Data/vms（Docker.raw）
-- ⚠️ 先 `docker system prune -a` 清镜像，别直接删 raw 文件；确认没在用的镜像再清
+### ⚠️ Xcode iOS DeviceSupport — ~/Library/Developer/Xcode/iOS DeviceSupport
+- **是什么**：连接过的实体 iPhone 符号表。每个旧系统版本都会留下数 GB 符号文件。
+- **怎么清**：可安全删除旧机型/旧版本 iOS 符号目录。
+
+### ✅ Cursor / VS Code workspaceStorage
+- **路径**：`~/Library/Application Support/Cursor/User/workspaceStorage` 与 `~/Library/Application Support/Code/User/workspaceStorage`。
+- **是什么**：历史打开过的所有项目的语言服务器索引与临时状态。
+- **前提**：必须先退出编辑器再清理。
 
 ---
 
-## 浏览器
+## 4. 🌐 浏览器与 Chromium 系应用
 
-### ✅ Chrome Service Worker — ~/Library/Application Support/Google/Chrome/<Profile>/Service Worker
-- **是什么**：网页应用（文档站、web 版应用）的离线缓存，文档类网站是重灾区
-- **实战战果**：30G
-- **怎么清**：整个 `Service Worker` 目录可删，网页下次访问自动重建
-- **⚠️ 同级别动**：`IndexedDB` 是网页应用的本地数据库（登录态、草稿），删了可能丢数据；`Local Storage`、`Preferences`、`Bookmarks` 别碰
-- **前提**：Chrome 必须先退出，否则边删边重建
+### ✅ Chrome / Edge / Arc / Brave Service Worker
+- **路径**：`~/Library/Application Support/<Browser>/<Profile>/Service Worker`
+- **是什么**：网页应用（文档站、Figma、Notion 等）离线网页缓存。
+- **⚠️ 同级禁动**：`IndexedDB` 存放网页本地草稿和状态，绝对不可删除！
+- **前提**：浏览器必须先完全退出，避免边删边重建。
 
 ### ✅ ChromeDebug — ~/Library/Application Support/Google/ChromeDebug
-- **是什么**：自动化调试（CDP/浏览器 agent）用独立 user-data-dir 启动 Chrome 留下的完整配置目录，其中的 Service Worker 缓存能独立长到 20G
-- **实战战果**：21G
-- **怎么清**：整个目录可删，调试实例下次启动会重建
-- **前提**：确认没有 `ChromeDebug` 进程在跑
-
-### ✅ 其他 Chromium 系浏览器
-- Edge：`~/Library/Application Support/Microsoft Edge/<Profile>/Service Worker`（同 Chrome 规则）
-- Brave/Arc 同理
+- **是什么**：自动化脚本或 Agent 独立启动调试浏览器留下的孤立配置目录。
+- **怎么清**：确认无调试实例后可整体删除。
 
 ---
 
-## IM / 国民应用
+## 5. 💬 办公通讯与音视频应用
 
-### ✅ Telegram — ~/Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram/account-*/postbox/media
-- **是什么**：Telegram Desktop 的媒体缓存，官方从不自动清理，issue 里有人攒到 100G
-- **怎么清**：删 `account-*/postbox/media` 下的内容，媒体文件查看时自动重新下载
-- **🚫 同级别动**：`postbox/db` 是本地消息数据库，删了聊天记录本地索引就没了
-- **前提**：先退出 Telegram
+### ✅ Telegram 媒体缓存
+- **路径**：`~/Library/Group Containers/*Telegram*/account-*/postbox/media`
+- **是什么**：查看过的群组图片与视频缓存。
+- **🚫 绝对别碰**：旁边的 `postbox/db`（本地消息数据库）。
 
-### ⚠️ 飞书 / Lark — ~/Library/Application Support/LarkShell
-- **是什么**：飞书内嵌 Chromium 内核的数据目录，`aha` 子目录是网页文档/预览缓存，多账号各自堆积
-- **实战战果**：48G → 9.5G
-- **怎么清**：只删 `aha/users/<user-id>/profile_explorer`（纯文档预览缓存）；`profile_main` 里有登录态，动了要重新扫码
-- **🚫 别碰**：`sdk_storage`、`database`（消息数据）
-- **前提**：飞书全家桶（Lark Helper 进程一堆）必须先全部退出，`pkill -9 -f Lark`
-- **经验**：多账号用户每个 user-id 都要看一眼，老的账号缓存往往最大
+### ⚠️ 飞书 (Lark) — aha / Cache
+- **路径**：`~/Library/Application Support/LarkShell/aha/users/*/profile_explorer`
+- **核心避坑**：只删 `profile_explorer`（纯文档预览缓存）；**切勿删除 `profile_main`**（包含登录凭证）；**切勿碰 `sdk_storage` 与 `database`**。
+- **前提**：飞书全家桶进程必须先全部退出 (`pkill -9 -f Lark`)。
 
-### ⚠️ 微信 — ~/Library/Containers/com.tencent.xinWeChat
-- **是什么**：沙盒目录，聊天记录、图片视频缓存、接收的文件全在里面，混在一起
-- **怎么清**：**优先引导用户走 app 内**：设置 → 通用 → 存储空间 → 管理，让微信自己清缓存。手动删容器内目录有误删聊天记录的风险，只有用户明确要求且理解风险时才在 `Data/Library/Caches` 等明确缓存子目录操作
-- **🚫 别碰**：任何形如 hash 的消息数据库目录
-
-### ⚠️ QQ / 钉钉 / 企业微信
-- 同微信原则：优先 app 内清理入口，沙盒内只动明确的 Caches 子目录
+### ⚠️ 微信 (WeChat)
+- **路径**：`~/Library/Containers/com.tencent.xinWeChat/Data/Library/Caches`
+- **原则**：**强烈建议优先走微信 App 内【设置 -> 通用 -> 存储空间】清理**。
+- **小程序安全项**：`WeChatApp` 离线小程序包在退出微信后可安全清理。
+- **🚫 绝对别碰**：任何 hash 命名的消息数据库与聊天记录。
 
 ---
 
-## 其他常见大户
+## 6. 🛑 军工级防误删防护体系
 
-### ✅ ~/Library/Caches（系统级用户缓存根目录）
-- 逐个应用看，`us.zoom.*`、`com.apple.helpd`、Spotify 的 `PersistentCache` 等都可以清
-- ⚠️ 里头个别应用会有非缓存数据，按 bundle id 对照，认不清的不动
-
-### ⚠️ 微信输入法 / 搜狗输入法 / 截图工具等常驻小工具
-- 单个体积小，但用户感知强，删前问一句
-
-### ⚠️ ~/Downloads / 工作产物目录
-- 不是缓存。用户明确要求才做分档清理：垃圾直删、超期归档、近期保留，按内容最后修改时间算
-
----
-
-## 禁止清单（任何情况下都不动）
-
-- `~/Library/Keychains`
-- 各应用的 `Login State`、`Cookies`、`Local Storage`、`IndexedDB`、`Preferences`（除地图明确标注可清的）
-- 消息数据库（Telegram `postbox/db`、微信 hash 目录、飞书 `sdk_storage`）
-- `/System`、`/usr` 下的任何东西
-- 地图上没有且查不清的路径 → 报告为"未知"，交用户决定
+小浣熊内置四重安全防线：
+1. **Kill Switch 核心物理熔断**：坚决拒绝碰触 `~/Library/Keychains`、`Cookies`、`Login State`、数据库文件及系统目录。
+2. **符号链接防穿透（Symlink Traversal Check）**：对软链接本身仅做解除绑定，绝对不跟随软链接递归删除真实目标文件。
+3. **敏感机密二级熔断（Deep Content Guard）**：清理前抽样审查，若发现目录内潜藏 `.pem`、`.key`、`.env`、`credentials` 等凭证文件，立即自动阻断保护。
+4. **访达原生“放回原处”支持**：普通目录移入废纸篓采用 macOS 原生 Finder 动作，用户可在废纸篓随时右键“放回原处”。
