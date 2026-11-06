@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
 disk-raccoon 自动化测试套件
-验证规则结构、绝对物理熔断、敏感机密二级熔断、符号链接不穿透与并发排他锁。
+验证规则结构、绝对物理熔断、敏感机密二级熔断、符号链接不穿透、多维度精准目标选择器与并发排他锁。
 """
 
 import os
 import sys
 import shutil
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts")))
@@ -48,11 +47,9 @@ class TestDiskRaccoon(unittest.TestCase):
 
     def test_sensitive_file_deep_guard(self):
         """验证二级深度防御：潜藏敏感凭证/私钥文件时熔断拦截"""
-        # 在用户目录内创建安全临时目录进行测试
         test_dir = os.path.expanduser("~/.cache/disk-raccoon/test_safe_guard")
         os.makedirs(test_dir, exist_ok=True)
         try:
-            # 放入伪造的私钥文件
             secret_file = os.path.join(test_dir, "id_rsa_backup.key")
             with open(secret_file, "w") as f:
                 f.write("FAKE KEY")
@@ -60,7 +57,6 @@ class TestDiskRaccoon(unittest.TestCase):
             detected = fast_scan.check_sensitive_content(test_dir)
             self.assertIsNotNone(detected, "未能检测到敏感私钥文件")
 
-            # 调用 safe_clean_path 必须抛出 SecurityAlertException
             with self.assertRaises(fast_scan.SecurityAlertException):
                 fast_scan.safe_clean_path(test_dir, dry_run=True)
         finally:
@@ -79,16 +75,34 @@ class TestDiskRaccoon(unittest.TestCase):
             symlink_path = os.path.join(test_dir, "link_to_important")
             os.symlink(real_target, symlink_path)
 
-            # 执行 safe_clean_path 清理该软链接
             ok, msg = fast_scan.safe_clean_path(symlink_path, dry_run=False)
             self.assertTrue(ok)
-            # 软链接应该被删除了
             self.assertFalse(os.path.islink(symlink_path))
-            # 真实文件必须安然无恙！
             self.assertTrue(os.path.exists(real_target))
         finally:
             if os.path.exists(test_dir):
                 shutil.rmtree(test_dir)
+
+    def test_target_selector_precision(self):
+        """验证目标选择器的精准匹配：按应用名、序号、规则ID匹配，且防止 pnpm 误伤 npm"""
+        item_npm = {"id": 5, "rule_id": "npm-cache", "app": "npm", "path": "/Users/test/.npm"}
+        item_pnpm = {"id": 2, "rule_id": "pnpm-store-lib", "app": "pnpm", "path": "/Users/test/Library/pnpm/store"}
+        item_gradle = {"id": 1, "rule_id": "gradle-cache", "app": "Gradle", "path": "/Users/test/.gradle/caches"}
+
+        # 1. 匹配 pnpm 时，不能命中 npm
+        self.assertTrue(fast_scan.is_item_selected(item_pnpm, ["pnpm"]))
+        self.assertFalse(fast_scan.is_item_selected(item_npm, ["pnpm"]))
+
+        # 2. 匹配 npm 时，不能命中 pnpm
+        self.assertTrue(fast_scan.is_item_selected(item_npm, ["npm"]))
+        self.assertFalse(fast_scan.is_item_selected(item_pnpm, ["npm"]))
+
+        # 3. 按数字序号匹配
+        self.assertTrue(fast_scan.is_item_selected(item_gradle, ["1"]))
+        self.assertFalse(fast_scan.is_item_selected(item_gradle, ["2"]))
+
+        # 4. 按规则ID匹配
+        self.assertTrue(fast_scan.is_item_selected(item_gradle, ["gradle-cache"]))
 
     def test_cjk_width_alignment(self):
         """验证中文字符在终端中的宽度计算（CJK=2, 半角=1）"""
@@ -109,7 +123,6 @@ class TestDiskRaccoon(unittest.TestCase):
         """验证并发排他锁"""
         with fast_scan.ProcessLock():
             self.assertTrue(os.path.exists(fast_scan.LOCK_FILE))
-        # 退出后锁文件自动清除
         self.assertFalse(os.path.exists(fast_scan.LOCK_FILE))
 
 if __name__ == "__main__":

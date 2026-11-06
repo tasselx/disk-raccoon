@@ -22,7 +22,7 @@ import unicodedata
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 DEFAULT_MIN_MB = 50
 CACHE_TTL_SECONDS = 120
 CACHE_DIR = os.path.expanduser("~/.cache/disk-raccoon")
@@ -481,6 +481,32 @@ def print_tty_report(data, min_mb, from_cache_sec=None, elapsed_sec=None):
     print(f"  • 一键安全清全部 ✅ 项: {COLOR_CYAN}raccoon clean --all-safe{COLOR_RESET}")
     print(f"  • 仅演练不真删: {COLOR_CYAN}raccoon clean --dry-run{COLOR_RESET}\n")
 
+def is_item_selected(it, selectors):
+    """支持按序号、应用名称（中文/英文）、规则ID或路径关键字精准匹配"""
+    import re
+    for sel in selectors:
+        sel_str = str(sel).strip().lower()
+        if not sel_str:
+            continue
+        # 1. 匹配序号
+        if sel_str.isdigit() and it["id"] == int(sel_str):
+            return True
+        # 2. 匹配规则 ID
+        if it.get("rule_id") and sel_str == it["rule_id"].lower():
+            return True
+        # 3. 匹配应用名 (精确相等或应用名分词完全匹配，防止 'pnpm' 误伤 'npm')
+        app_name = it.get("app", "").lower()
+        if sel_str == app_name:
+            return True
+        tokens = [t.lower() for t in re.findall(r'[a-zA-Z0-9_\-]+|[\u4e00-\u9fa5]+', app_name)]
+        if sel_str in tokens:
+            return True
+        # 4. 匹配路径末尾目录名
+        path_name = os.path.basename(it.get("path", "").rstrip("/")).lower()
+        if sel_str == path_name:
+            return True
+    return False
+
 def print_markdown_report(data, min_mb, from_cache_sec=None, elapsed_sec=None):
     disk_info = data.get("disk", {})
     snapshots = data.get("apfs_snapshots", [])
@@ -505,14 +531,14 @@ def print_markdown_report(data, min_mb, from_cache_sec=None, elapsed_sec=None):
     print(f"**发现可释放目标**：预估 **{total_str}**（仅统计 ≥ {min_mb}MB 的有效缓存项）｜ 等价省下硬件升配费: **≈ ¥{savings_cny}**{perf_info}\n")
 
     print("### 🎯 待确认清理项（Actionable Targets）")
-    print("| 序号 | 占用大小 | 安全等级 | 所属应用 / 项目 | 路径 | 清理建议 / 影响 |")
+    print("| # | 占用大小 | 安全等级 | 所属应用 / 项目 | 路径 | 清理建议 / 影响 |")
     print("| :--- | :--- | :--- | :--- | :--- | :--- |")
 
     for it in actionable:
         native_hint = f" `[{it['native_clean_cmd']}]`" if it.get("native_clean_cmd") else ""
         print(f"| {it['id']} | **{it['size_str']}** | {it['level']} | {it['app']} | `{it['path_display']}` | {it['suggest']}{native_hint} ({it['desc']}) |")
 
-    print("\n> 🛡️ **安全提示**：当前为**只读分析**，未执行任何删除。如需清理，可告诉我序号为您安全处理，或直接在终端运行 `raccoon clean`。")
+    print("\n> 🛡️ **安全提示**：当前为**只读分析**，未执行任何删除。您可以根据需要选择清理方案（例如全选安全项、仅清理指定工具链、或自由挑选），我将为您安全受控执行。")
 
 def record_history(freed_bytes, items_cleaned):
     os.makedirs(CACHE_DIR, exist_ok=True)
@@ -676,7 +702,7 @@ class ProcessLock:
         except Exception:
             pass
 
-def run_clean_flow(target_ids=None, all_safe=False, dry_run=False):
+def run_clean_flow(target_selectors=None, all_safe=False, dry_run=False):
     with ProcessLock():
         print(f"\n{COLOR_CYAN}🔍 正在执行清理前最新状态校验...{COLOR_RESET}")
         scan_data = run_scan(min_mb=DEFAULT_MIN_MB, force_refresh=True)
@@ -689,11 +715,11 @@ def run_clean_flow(target_ids=None, all_safe=False, dry_run=False):
         to_clean = []
         if all_safe:
             to_clean = [it for it in items if "✅" in it["level"]]
-        elif target_ids:
-            to_clean = [it for it in items if it["id"] in target_ids]
+        elif target_selectors:
+            to_clean = [it for it in items if is_item_selected(it, target_selectors)]
         else:
             print_tty_report(scan_data, min_mb=DEFAULT_MIN_MB)
-            print(f"{COLOR_BOLD}请输入要清理的序号 (多个用逗号隔开，输入 'all-safe' 清理所有 ✅ 项，输入 'q' 退出):{COLOR_RESET} ", end="")
+            print(f"{COLOR_BOLD}请输入要清理的应用名或序号 (如 'pnpm,gradle' 或 '1,2'，输入 'all-safe' 清理所有安全项，'q' 退出):{COLOR_RESET} ", end="")
             try:
                 user_input = input().strip()
             except (KeyboardInterrupt, EOFError):
@@ -707,12 +733,8 @@ def run_clean_flow(target_ids=None, all_safe=False, dry_run=False):
             if user_input.lower() == 'all-safe':
                 to_clean = [it for it in items if "✅" in it["level"]]
             else:
-                try:
-                    selected_ids = {int(x.strip()) for x in user_input.split(",") if x.strip()}
-                    to_clean = [it for it in items if it["id"] in selected_ids]
-                except ValueError:
-                    print(f"{COLOR_RED}❌ 输入格式无效。{COLOR_RESET}")
-                    return
+                selectors = [x.strip() for x in user_input.split(",") if x.strip()]
+                to_clean = [it for it in items if is_item_selected(it, selectors)]
 
         if not to_clean:
             print(f"{COLOR_YELLOW}未选择任何有效清理项。{COLOR_RESET}")
@@ -822,7 +844,7 @@ def main():
     all_safe = "--all-safe" in sys.argv
 
     min_mb = DEFAULT_MIN_MB
-    target_ids = None
+    target_selectors = None
 
     for arg in sys.argv:
         if arg.startswith("--min-mb="):
@@ -831,13 +853,11 @@ def main():
             except ValueError:
                 pass
         elif arg.startswith("--target="):
-            try:
-                target_ids = {int(x.strip()) for x in arg.split("=")[1].split(",") if x.strip()}
-            except ValueError:
-                pass
+            val = arg.split("=")[1]
+            target_selectors = [x.strip() for x in val.split(",") if x.strip()]
 
     if subcmd == "clean":
-        run_clean_flow(target_ids=target_ids, all_safe=all_safe, dry_run=dry_run)
+        run_clean_flow(target_selectors=target_selectors, all_safe=all_safe, dry_run=dry_run)
         return
 
     data = run_scan(min_mb=min_mb, force_refresh=force_refresh)

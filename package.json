@@ -1,6 +1,6 @@
 {
   "name": "disk-raccoon",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "macOS 缓存清理 Agent（小浣熊）与极速体检/安全清理 CLI",
   "main": "scripts/fast-scan.py",
   "bin": {
